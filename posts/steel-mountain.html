@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Steel Mountain | Shadow Logs</title>
+    <meta
+      name="description"
+      content="Sample TryHackMe writeup layout for Shadow Logs."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="site-header">
+        <a class="brand" href="../index.html">Shadow Logs</a>
+        <nav class="site-nav">
+          <a href="../index.html">Home</a>
+          <a href="../blog.html">Blog</a>
+        </nav>
+      </header>
+
+      <main class="post-layout">
+        <article class="post-article">
+          <p class="eyebrow">TryHackMe Writeup</p>
+          <h1>Steel Mountain</h1>
+          <p class="post-meta">Difficulty: Medium • Platform: Windows</p>
+
+          <p class="lead">
+            This sample post gives you a ready-made structure for publishing
+            room walkthroughs. Swap in your own commands, screenshots, and notes
+            after each session.
+          </p>
+
+          <section>
+            <h2>Enumeration</h2>
+            <p>
+              Start with a concise summary of the target and the first scans you
+              ran. Keep this section practical so readers can quickly understand
+              the attack surface you identified.
+            </p>
+            <pre><code>nmap -sC -sV -oN initial-scan.txt TARGET_IP</code></pre>
+          </section>
+
+          <section>
+            <h2>Initial Foothold</h2>
+            <p>
+              Describe the vulnerable service or application, why it looked
+              promising, and how you confirmed the exploit path. Mention failed
+              attempts too if they taught you something useful.
+            </p>
+          </section>
+
+          <section>
+            <h2>Privilege Escalation</h2>
+            <p>
+              Explain the path from user access to administrator or SYSTEM with
+              enough detail for later review. This is often the section that
+              becomes most valuable when you revisit old boxes.
+            </p>
+            <pre><code>whoami /priv
+systeminfo
+winPEAS.exe</code></pre>
+          </section>
+
+          <section>
+            <h2>Lessons Learned</h2>
+            <p>
+              End with a short reflection. Focus on the patterns you want to
+              remember: a service fingerprint, a Windows escalation vector, or a
+              workflow improvement for the next room.
+            </p>
+          </section>
+
+          <a class="button button-primary" href="../blog.html">Back to blog</a>
+        </article>
+
+        <aside class="post-sidebar">
+          <div class="sidebar-card">
+            <p class="card-label">Template checklist</p>
+            <ul>
+              <li>Add room name and difficulty</li>
+              <li>Include commands in code blocks</li>
+              <li>Insert screenshots where needed</li>
+              <li>Finish with key takeaways</li>
+            </ul>
+          </div>
+        </aside>
+      </main>
+
+      <footer class="site-footer">
+        <p>Shadow Logs</p>
+        <p>Documenting the journey from recon to root.</p>
+      </footer>
+    </div>
+  </body>
+</html>

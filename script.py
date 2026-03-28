@@ -17,10 +17,6 @@ STOP_EVENT = threading.Event()
 
 
 def safe_text(value) -> str:
-    """
-    Convert any banner/output into terminal-safe ASCII text.
-    Prevents UnicodeEncodeError on restricted terminals.
-    """
     if value is None:
         return ""
     if isinstance(value, bytes):
@@ -43,12 +39,6 @@ def unique_preserve_order(items: Iterable[str]) -> List[str]:
 
 
 def parse_ports(port_spec: str) -> List[int]:
-    """
-    Examples:
-      1-1024
-      21,22,80,443
-      1-100,443,3306
-    """
     ports = set()
 
     for part in port_spec.split(","):
@@ -74,14 +64,6 @@ def parse_ports(port_spec: str) -> List[int]:
 
 
 def parse_targets(target: str) -> List[str]:
-    """
-    Supports:
-      127.0.0.1
-      localhost
-      172.16.1.0/24
-      172.16.1.1-254
-      127.0.0.1,172.16.1.10
-    """
     targets = []
 
     for raw_item in target.split(","):
@@ -94,7 +76,6 @@ def parse_targets(target: str) -> List[str]:
             targets.extend(str(ip) for ip in network.hosts())
             continue
 
-        # Supports only last-octet range like 172.16.1.1-254
         if "-" in item and item.count(".") == 3:
             prefix, last = item.rsplit(".", 1)
             start_s, end_s = last.split("-", 1)
@@ -181,11 +162,6 @@ def try_plain_banner(
     http_host: str,
     http_path: str,
 ) -> str:
-    """
-    Try to grab a plain TCP banner.
-    Some services send a banner immediately.
-    Others need a small protocol-specific probe.
-    """
     with connect_socket(host, port, timeout) as sock:
         sock.settimeout(timeout)
 
@@ -231,9 +207,6 @@ def try_tls_banner(
     http_path: str,
     sni_host: str,
 ) -> str:
-    """
-    Try to identify TLS services and optionally fetch a minimal HTTPS response.
-    """
     context = ssl.create_default_context()
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE
